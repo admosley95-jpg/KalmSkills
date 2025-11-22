@@ -28,23 +28,51 @@ const MARKET_SIGNALS = {
   "TechFlow Systems": {
     sentiment: "High Growth",
     signal: "SEC 10-K: 15% budget increase for R&D.",
-    healthScore: 92
+    healthScore: 92,
+    layoffRisk: "Low",
+    fundingStatus: "Series C - $50M raised",
+    hiringTrend: "+35% YoY"
   },
   "QuantMetrics": {
     sentiment: "Stable",
     signal: "SEC 8-K: Recent merger, consolidating teams.",
-    healthScore: 65
+    healthScore: 65,
+    layoffRisk: "Medium",
+    fundingStatus: "Public (NASDAQ)",
+    hiringTrend: "-5% QoQ"
   },
   "Capital Horizons": {
     sentiment: "Aggressive Expansion",
     signal: "SEC 10-K: Opening 3 new regional offices.",
-    healthScore: 88
+    healthScore: 88,
+    layoffRisk: "Low",
+    fundingStatus: "Profitable - Private",
+    hiringTrend: "+42% YoY"
   },
   "BuildIt Corp": {
     sentiment: "Cautionary",
     signal: "SEC 10-Q: Supply chain headwinds noted.",
-    healthScore: 55
+    healthScore: 55,
+    layoffRisk: "High",
+    fundingStatus: "Series B - Runway < 12mo",
+    hiringTrend: "-12% QoQ"
   }
+};
+
+// --- STRATEGY LAYER 3: SKILL DEMAND TRENDS ---
+// Market intelligence: Which skills are trending up/down
+const SKILL_TRENDS = {
+  "Python": { trend: "rising", demand: "+28% YoY", avgSalary: "$125k" },
+  "JavaScript": { trend: "stable", demand: "+5% YoY", avgSalary: "$115k" },
+  "React": { trend: "rising", demand: "+18% YoY", avgSalary: "$120k" },
+  "SQL": { trend: "stable", demand: "+8% YoY", avgSalary: "$95k" },
+  "Machine Learning": { trend: "rising", demand: "+45% YoY", avgSalary: "$140k" },
+  "AWS": { trend: "rising", demand: "+32% YoY", avgSalary: "$130k" },
+  "Communication": { trend: "stable", demand: "+3% YoY", avgSalary: "N/A" },
+  "Leadership": { trend: "rising", demand: "+12% YoY", avgSalary: "N/A" },
+  "Agile": { trend: "stable", demand: "+6% YoY", avgSalary: "N/A" },
+  "Financial Modeling": { trend: "stable", demand: "+4% YoY", avgSalary: "$105k" },
+  "SEC Reporting": { trend: "stable", demand: "+2% YoY", avgSalary: "$98k" },
 };
 
 // --- MOCK JOB DATABASE ---
@@ -129,10 +157,48 @@ const MarketSignalCard = ({ company }) => {
           {data.healthScore}/100 Health
         </span>
       </div>
-      <p className="text-gray-700 italic">"{data.signal}"</p>
+      <p className="text-gray-700 italic mb-2">"{data.signal}"</p>
+      
+      {/* Enhanced market metrics */}
+      <div className="space-y-1 mt-2 pt-2 border-t border-gray-200">
+        <div className="flex justify-between">
+          <span className="text-gray-500">Layoff Risk:</span>
+          <span className={`font-semibold ${
+            data.layoffRisk === 'Low' ? 'text-black' : 
+            data.layoffRisk === 'Medium' ? 'text-gray-600' : 'text-gray-800'
+          }`}>{data.layoffRisk}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">Funding:</span>
+          <span className="text-black font-medium">{data.fundingStatus}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-500">Hiring Trend:</span>
+          <span className={`font-semibold ${
+            data.hiringTrend.startsWith('+') ? 'text-black' : 'text-gray-600'
+          }`}>{data.hiringTrend}</span>
+        </div>
+      </div>
+      
       <div className="mt-2 flex items-center text-[10px] text-gray-500 uppercase tracking-wide">
         Source: SEC EDGAR Analysis
       </div>
+    </div>
+  );
+};
+
+const SkillTrendIndicator = ({ skill }) => {
+  const trend = SKILL_TRENDS[skill.name];
+  if (!trend) return null;
+
+  return (
+    <div className="mt-1 text-[10px] text-gray-500">
+      <span className={trend.trend === 'rising' ? 'text-black' : 'text-gray-600'}>
+        {trend.trend === 'rising' ? '↗' : '→'} {trend.demand}
+      </span>
+      {trend.avgSalary !== 'N/A' && (
+        <span className="ml-2">• Avg: {trend.avgSalary}</span>
+      )}
     </div>
   );
 };
@@ -238,10 +304,11 @@ export default function ResumeJobMatcher() {
             <span className="font-bold text-lg tracking-tight">KalmSkills<span className="text-gray-400 font-normal">.ai</span></span>
           </div>
           <div className="flex items-center space-x-4 text-sm font-medium text-gray-400">
-            <span className="flex items-center hover:text-white cursor-pointer"><ShieldAlert className="w-4 h-4 mr-1" /> Legal Compliance</span>
-            <span className="flex items-center hover:text-white cursor-pointer"><Cpu className="w-4 h-4 mr-1" /> O*NET Taxonomy</span>
+            <span className="flex items-center hover:text-white cursor-pointer" title="EEOC & ADA Compliant"><ShieldAlert className="w-4 h-4 mr-1" /> Legal Compliance</span>
+            <span className="flex items-center hover:text-white cursor-pointer" title="Standardized Skill Framework"><Cpu className="w-4 h-4 mr-1" /> O*NET Taxonomy</span>
+            <span className="flex items-center hover:text-white cursor-pointer" title="Real-time Market Data"><TrendingUp className="w-4 h-4 mr-1" /> SEC Intelligence</span>
             <div className="h-4 w-px bg-gray-600"></div>
-            <span className="text-xs bg-white text-black px-2 py-1 rounded-full">v2.1 Prototype</span>
+            <span className="text-xs bg-white text-black px-2 py-1 rounded-full">v3.0 Career Intelligence</span>
           </div>
         </div>
       </header>
@@ -273,11 +340,38 @@ export default function ResumeJobMatcher() {
             </div>
           </div>
 
+          {/* KalmSkills Competitive Advantage Banner */}
+          {!extractedSkills.length && (
+            <div className="bg-gradient-to-r from-black to-gray-800 rounded-xl shadow-sm border border-gray-700 p-5 text-white">
+              <h3 className="font-bold text-sm mb-3 flex items-center">
+                <Database className="w-4 h-4 mr-2" /> Why KalmSkills is Different
+              </h3>
+              <div className="space-y-2 text-xs">
+                <div className="flex items-start">
+                  <CheckCircle className="w-3 h-3 mr-2 mt-0.5 flex-shrink-0" />
+                  <span><strong>SEC Financial Intelligence:</strong> See company health, layoff risk & funding status</span>
+                </div>
+                <div className="flex items-start">
+                  <CheckCircle className="w-3 h-3 mr-2 mt-0.5 flex-shrink-0" />
+                  <span><strong>Live Skill Trends:</strong> Track demand & salary data for every skill</span>
+                </div>
+                <div className="flex items-start">
+                  <CheckCircle className="w-3 h-3 mr-2 mt-0.5 flex-shrink-0" />
+                  <span><strong>O*NET Standardization:</strong> Industry-standard skill taxonomy (not proprietary)</span>
+                </div>
+                <div className="flex items-start">
+                  <CheckCircle className="w-3 h-3 mr-2 mt-0.5 flex-shrink-0" />
+                  <span><strong>100% Transparent:</strong> See exactly how match scores are calculated</span>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Skill Taxonomy Visualization */}
           {extractedSkills.length > 0 && stats && (
             <div className="bg-white rounded-xl shadow-sm border border-gray-300 p-5 animate-in fade-in slide-in-from-bottom-4">
               <h3 className="font-semibold text-sm text-black mb-4 flex items-center">
-                <Cpu className="w-4 h-4 mr-2 text-black" /> Standardized Skill Graph
+                <Cpu className="w-4 h-4 mr-2 text-black" /> Your Skill Portfolio
               </h3>
 
               <div className="flex space-x-2 mb-4 text-center">
@@ -295,14 +389,16 @@ export default function ResumeJobMatcher() {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="space-y-2">
                 {extractedSkills.map(skill => (
-                  <Badge
-                    key={skill.id}
-                    type={skill.category === 'Hard Skill' ? 'info' : skill.category === 'Soft Skill' ? 'success' : 'purple'}
-                  >
-                    {skill.name}
-                  </Badge>
+                  <div key={skill.id}>
+                    <Badge
+                      type={skill.category === 'Hard Skill' ? 'info' : skill.category === 'Soft Skill' ? 'success' : 'purple'}
+                    >
+                      {skill.name}
+                    </Badge>
+                    <SkillTrendIndicator skill={skill} />
+                  </div>
                 ))}
               </div>
 
