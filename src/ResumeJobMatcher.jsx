@@ -2,8 +2,9 @@ import React, { useState, useMemo, useEffect } from 'react';
 import {
   FileText, Briefcase, CheckCircle, AlertCircle,
   BarChart2, Search, Database, TrendingUp,
-  Cpu, Users, BookOpen, ShieldAlert, ArrowRight
+  Cpu, Users, BookOpen, ShieldAlert, ArrowRight, Loader
 } from 'lucide-react';
+import API from './api/kalmskills';
 
 // --- STRATEGY LAYER 1: THE O*NET-INSPIRED TAXONOMY ---
 // This simulates the "Brain" of the system. It maps raw keywords to standardized IDs.
@@ -143,45 +144,56 @@ const Badge = ({ children, type = 'neutral', className = '' }) => {
   );
 };
 
-const MarketSignalCard = ({ company }) => {
-  const data = MARKET_SIGNALS[company];
+const MarketSignalCard = ({ company, realTimeData }) => {
+  // Use real-time data if available, otherwise fall back to mock data
+  const apiData = realTimeData && realTimeData[company];
+  const data = apiData || MARKET_SIGNALS[company];
+  
   if (!data) return null;
+
+  const healthScore = apiData ? apiData.health_score : data.healthScore;
+  const layoffRisk = apiData ? apiData.layoff_risk : data.layoffRisk;
+  const fundingStatus = apiData ? apiData.funding_status : data.fundingStatus;
+  const hiringTrend = apiData ? apiData.hiring_trend : data.hiringTrend;
+  const signal = apiData ? apiData.signal : data.signal;
+  const isRealData = !!apiData;
 
   return (
     <div className="mt-3 p-3 bg-gray-50 rounded border border-gray-300 text-xs">
       <div className="flex items-center justify-between mb-2">
         <span className="font-semibold text-black flex items-center">
           <TrendingUp className="w-3 h-3 mr-1" /> Market Intelligence
+          {isRealData && <span className="ml-1 text-[8px] bg-black text-white px-1 rounded">LIVE</span>}
         </span>
-        <span className={`font-bold ${data.healthScore > 80 ? 'text-black' : 'text-gray-600'}`}>
-          {data.healthScore}/100 Health
+        <span className={`font-bold ${healthScore > 80 ? 'text-black' : 'text-gray-600'}`}>
+          {healthScore}/100 Health
         </span>
       </div>
-      <p className="text-gray-700 italic mb-2">"{data.signal}"</p>
+      <p className="text-gray-700 italic mb-2">"{signal}"</p>
       
       {/* Enhanced market metrics */}
       <div className="space-y-1 mt-2 pt-2 border-t border-gray-200">
         <div className="flex justify-between">
           <span className="text-gray-500">Layoff Risk:</span>
           <span className={`font-semibold ${
-            data.layoffRisk === 'Low' ? 'text-black' : 
-            data.layoffRisk === 'Medium' ? 'text-gray-600' : 'text-gray-800'
-          }`}>{data.layoffRisk}</span>
+            layoffRisk === 'Low' ? 'text-black' : 
+            layoffRisk === 'Medium' ? 'text-gray-600' : 'text-gray-800'
+          }`}>{layoffRisk}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-500">Funding:</span>
-          <span className="text-black font-medium">{data.fundingStatus}</span>
+          <span className="text-black font-medium">{fundingStatus}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-gray-500">Hiring Trend:</span>
           <span className={`font-semibold ${
-            data.hiringTrend.startsWith('+') ? 'text-black' : 'text-gray-600'
-          }`}>{data.hiringTrend}</span>
+            hiringTrend.startsWith('+') ? 'text-black' : 'text-gray-600'
+          }`}>{hiringTrend}</span>
         </div>
       </div>
       
       <div className="mt-2 flex items-center text-[10px] text-gray-500 uppercase tracking-wide">
-        Source: SEC EDGAR Analysis
+        Source: {isRealData ? 'SEC EDGAR (Real-time)' : 'SEC EDGAR Analysis (Mock)'}
       </div>
     </div>
   );
@@ -234,17 +246,54 @@ export default function ResumeJobMatcher() {
     return Array.from(found);
   };
 
-  const runAnalysis = () => {
+  const runAnalysis = async () => {
     setIsAnalyzing(true);
 
-    // Simulate processing time
-    setTimeout(() => {
-      // 1. Extract Skills using Taxonomy
-      const skills = normalizeAndExtract(resumeText);
-      setExtractedSkills(skills);
+    // 1. Extract Skills using Taxonomy
+    const skills = normalizeAndExtract(resumeText);
+    setExtractedSkills(skills);
 
-      // 2. Match against Jobs
-      const matches = JOB_DATABASE.map(job => {
+    // 2. Fetch real data from API if available
+    if (apiStatus === 'online') {
+      // Try to get real occupation match
+      const skillNames = skills.map(s => s.name);
+      const matchData = await API.matchResume(skillNames);
+      
+      if (matchData) {
+        // Enrich with real occupation data
+        const occupationDetails = await API.getOccupationDetails(matchData.occupation_code);
+        const occupationSkills = await API.getOccupationSkills(matchData.occupation_code);
+        
+        // Store real-time data
+        setRealTimeData(prev => ({
+          ...prev,
+          [matchData.occupation_code]: {
+            details: occupationDetails,
+            skills: occupationSkills,
+            match: matchData
+          }
+        }));
+      }
+
+      // Fetch company data for each job in database
+      for (const job of JOB_DATABASE) {
+        const companyData = await API.searchCompanies(job.company);
+        if (companyData.results && companyData.results.length > 0) {
+          const company = companyData.results[0];
+          const health = await API.getCompanyHealth(company.cik);
+          
+          if (health) {
+            setRealTimeData(prev => ({
+              ...prev,
+              [job.company]: health
+            }));
+          }
+        }
+      }
+    }
+
+    // 3. Match against Jobs (keep existing logic)
+    const matches = JOB_DATABASE.map(job => {
         // Map job requirements to skill objects
         // In a real app, job reqs would already be IDs. Here we map string -> object.
         const jobReqNodes = job.required_skills.map(reqName =>
@@ -278,11 +327,10 @@ export default function ResumeJobMatcher() {
           missingReqs,
           matchedBonus
         };
-      }).sort((a, b) => b.matchScore - a.matchScore);
+    }).sort((a, b) => b.matchScore - a.matchScore);
 
-      setProcessedMatches(matches);
-      setIsAnalyzing(false);
-    }, 1200);
+    setProcessedMatches(matches);
+    setIsAnalyzing(false);
   };
 
   // Statistics for Dashboard
@@ -302,11 +350,27 @@ export default function ResumeJobMatcher() {
           <div className="flex items-center space-x-2 text-white">
             <Database className="w-6 h-6" />
             <span className="font-bold text-lg tracking-tight">KalmSkills<span className="text-gray-400 font-normal">.ai</span></span>
+            {apiStatus === 'online' && (
+              <span className="ml-2 flex items-center text-[10px] bg-green-500 text-white px-2 py-0.5 rounded-full">
+                <span className="w-1.5 h-1.5 bg-white rounded-full mr-1 animate-pulse"></span>
+                API LIVE
+              </span>
+            )}
+            {apiStatus === 'offline' && (
+              <span className="ml-2 flex items-center text-[10px] bg-gray-600 text-white px-2 py-0.5 rounded-full">
+                Mock Data
+              </span>
+            )}
           </div>
           <div className="flex items-center space-x-4 text-sm font-medium text-gray-400">
             <span className="flex items-center hover:text-white cursor-pointer" title="EEOC & ADA Compliant"><ShieldAlert className="w-4 h-4 mr-1" /> Legal Compliance</span>
             <span className="flex items-center hover:text-white cursor-pointer" title="Standardized Skill Framework"><Cpu className="w-4 h-4 mr-1" /> O*NET Taxonomy</span>
             <span className="flex items-center hover:text-white cursor-pointer" title="Real-time Market Data"><TrendingUp className="w-4 h-4 mr-1" /> SEC Intelligence</span>
+            {unemploymentRate && (
+              <span className="flex items-center text-white" title="National Unemployment Rate">
+                📊 US: {unemploymentRate}%
+              </span>
+            )}
             <div className="h-4 w-px bg-gray-600"></div>
             <span className="text-xs bg-white text-black px-2 py-1 rounded-full">v3.0 Career Intelligence</span>
           </div>
@@ -333,9 +397,16 @@ export default function ResumeJobMatcher() {
               <button
                 onClick={runAnalysis}
                 disabled={isAnalyzing}
-                className="mt-4 w-full py-2.5 bg-black hover:bg-gray-800 text-white rounded-lg font-medium text-sm transition-all flex items-center justify-center"
+                className="mt-4 w-full py-2.5 bg-black hover:bg-gray-800 text-white rounded-lg font-medium text-sm transition-all flex items-center justify-center disabled:opacity-50"
               >
-                {isAnalyzing ? 'Processing NLP...' : 'Analyze & Match Strategy'}
+                {isAnalyzing ? (
+                  <>
+                    <Loader className="w-4 h-4 mr-2 animate-spin" />
+                    {apiStatus === 'online' ? 'Fetching Real Data...' : 'Processing NLP...'}
+                  </>
+                ) : (
+                  `Analyze & Match Strategy ${apiStatus === 'online' ? '(Live Data)' : ''}`
+                )}
               </button>
             </div>
           </div>
@@ -501,7 +572,7 @@ export default function ResumeJobMatcher() {
                            </div>
                         </div>
 
-                        <MarketSignalCard company={job.company} />
+                        <MarketSignalCard company={job.company} realTimeData={realTimeData} />
                       </div>
 
                       <div className="mt-4 pt-4 border-t border-gray-300">
