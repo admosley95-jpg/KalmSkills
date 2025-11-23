@@ -5,7 +5,6 @@ Parses and searches locally downloaded O*NET database files
 
 import os
 import csv
-import json
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 import logging
@@ -41,6 +40,8 @@ class OnetService:
     def __init__(self):
         self.occupations = {}  # code -> {title, description}
         self.skills_data = {}  # code -> List[Skill]
+        self.load_error = None
+        self.data_path = None
         self._load_data()
     
     def _load_data(self):
@@ -48,6 +49,7 @@ class OnetService:
         # Use absolute path relative to this file to ensure it works on Render
         base_dir = Path(__file__).resolve().parent.parent # backend/
         cache_dir = base_dir / "data" / "onet" / "cache"
+        self.data_path = str(cache_dir)
         
         logger.info(f"Current working directory: {os.getcwd()}")
         logger.info(f"Looking for O*NET cache at: {cache_dir}")
@@ -110,87 +112,14 @@ class OnetService:
                 return
 
             except Exception as e:
+                self.load_error = str(e)
                 logger.error(f"Error loading from cache: {e}")
+        else:
+            self.load_error = f"Cache files not found at {cache_dir}"
+            logger.warning(self.load_error)
 
         # Fallback to text files
         if not ONET_DATA_DIR.exists():
-            logger.warning(f"O*NET data directory not found at {ONET_DATA_DIR}. Using mock data.")
-            return
-
-        logger.info("Loading O*NET database...")
-        
-        # Load Occupations
-        try:
-            with open(ONET_DATA_DIR / "Occupation Data.txt", "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f, delimiter="\t")
-                for row in reader:
-                    self.occupations[row["O*NET-SOC Code"]] = {
-                        "title": row["Title"],
-                        "description": row["Description"]
-                    }
-            logger.info(f"Loaded {len(self.occupations)} occupations.")
-        except Exception as e:
-            logger.error(f"Error loading occupations: {e}")
-
-        # Load Skills
-        try:
-            # First, get Element Names (Skill names)
-            element_names = {} # Element ID -> Name
-            with open(ONET_DATA_DIR / "Content Model Reference.txt", "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f, delimiter="\t")
-                for row in reader:
-                    element_names[row["Element ID"]] = {
-                        "name": row["Element Name"],
-                        "description": row["Description"]
-                    }
-            
-            # Now load Skills.txt
-            # It maps O*NET-SOC Code -> Element ID -> Data Value (Importance/Level)
-            # Scale ID: IM (Importance 1-5), LV (Level 0-7)
-            
-            temp_skills = {} # code -> element_id -> {importance, level}
-            
-            with open(ONET_DATA_DIR / "Skills.txt", "r", encoding="utf-8") as f:
-                reader = csv.DictReader(f, delimiter="\t")
-                for row in reader:
-                    code = row["O*NET-SOC Code"]
-                    elem_id = row["Element ID"]
-                    scale = row["Scale ID"]
-                    value = float(row["Data Value"])
-                    
-                    if code not in temp_skills:
-                        temp_skills[code] = {}
-                    if elem_id not in temp_skills[code]:
-                        temp_skills[code][elem_id] = {"importance": 0, "level": 0}
-                    
-                    if scale == "IM":
-                        temp_skills[code][elem_id]["importance"] = value
-                    elif scale == "LV":
-                        temp_skills[code][elem_id]["level"] = value
-
-            # Convert to Skill objects
-            for code, elems in temp_skills.items():
-                self.skills_data[code] = []
-                for elem_id, vals in elems.items():
-                    # Only include skills with sufficient importance
-                    if vals["importance"] >= 2.0: # Filter low importance
-                        skill_info = element_names.get(elem_id, {"name": "Unknown", "description": ""})
-                        self.skills_data[code].append(Skill(
-                            id=elem_id,
-                            name=skill_info["name"],
-                            description=skill_info["description"],
-                            category="Skill", # Could derive from element ID hierarchy
-                            level=vals["level"],
-                            importance=vals["importance"]
-                        ))
-                
-                # Sort by importance
-                self.skills_data[code].sort(key=lambda x: x.importance, reverse=True)
-                
-            logger.info(f"Loaded skills for {len(self.skills_data)} occupations.")
-            
-        except Exception as e:
-            logger.error(f"Error loading skills: {e}")
 
     def search_occupations(self, keyword: str) -> List[Dict]:
         """Search for occupations by keyword in title or description"""

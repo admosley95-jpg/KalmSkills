@@ -9,13 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from pydantic import BaseModel
 import logging
-import sys
-import os
 
-# Add backend directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from services.onet_service_local import OnetService, Skill, Occupation
+from services.onet_service import OnetService, Skill, Occupation
 from services.sec_service import SECService, CompanyHealth
 from services.bls_service import BLSService
 
@@ -36,8 +31,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://192.168.1.18:5173",
-        "https://admosley95-jpg.github.io",
-        "https://kalmskills-s2ko.onrender.com"
+        "https://admosley95-jpg.github.io"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -99,6 +93,42 @@ async def root():
             "sec": "✅ Active (no key required)",
             "bls": "✅ Active (limited to 25 queries/day without key)"
         }
+    }
+
+@app.get("/api/debug")
+async def debug_info():
+    """Debug endpoint to check server state"""
+    import os
+    from pathlib import Path
+    
+    cwd = os.getcwd()
+    base_dir = Path(__file__).resolve().parent
+    cache_dir = base_dir / "data" / "onet" / "cache"
+    
+    occ_path = cache_dir / "occupations.json"
+    skills_path = cache_dir / "skills.json"
+    
+    return {
+        "cwd": cwd,
+        "base_dir": str(base_dir),
+        "cache_dir": str(cache_dir),
+        "files": {
+            "occupations.json": {
+                "exists": occ_path.exists(),
+                "size": occ_path.stat().st_size if occ_path.exists() else 0
+            },
+            "skills.json": {
+                "exists": skills_path.exists(),
+                "size": skills_path.stat().st_size if skills_path.exists() else 0
+            }
+        },
+        "onet_service": {
+            "occupations_loaded": len(onet_service.occupations),
+            "skills_loaded": len(onet_service.skills_data),
+            "load_error": onet_service.load_error,
+            "data_path_used": onet_service.data_path
+        },
+        "test_search": onet_service.search_occupations("construction work")[:2]
     }
 
 # O*NET Endpoints
