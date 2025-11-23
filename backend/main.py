@@ -289,16 +289,22 @@ async def get_unemployment():
         logger.error(f"Error fetching unemployment: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+# Pydantic model for match request
+class MatchRequest(BaseModel):
+    resume_skills: List[str]
+    target_occupation: Optional[str] = None
+
 # Resume Matching Endpoint
 @app.post("/api/match")
-async def match_resume(resume_skills: List[str], target_occupation: Optional[str] = None):
+async def match_resume(request: MatchRequest):
     """
     Match resume skills against target occupation
     
     Args:
-        resume_skills: List of skills from resume
-        target_occupation: O*NET code for target job (optional)
+        request: MatchRequest with resume_skills and optional target_occupation
     """
+    resume_skills = request.resume_skills
+    target_occupation = request.target_occupation
     try:
         # If no target specified, search for best match
         if not target_occupation:

@@ -48,9 +48,15 @@ class SECService:
     def get_company_by_ticker(self, ticker: str) -> Optional[CompanyInfo]:
         """Get company information by stock ticker"""
         try:
-            # SEC provides a ticker mapping file
-            url = f"{self.BASE_URL}/files/company_tickers.json"
+            # Updated SEC API endpoint
+            url = f"{self.BASE_URL}/files/company_tickers_exchange.json"
             response = self.session.get(url)
+            
+            # If that fails, try the older endpoint
+            if response.status_code == 404:
+                url = "https://www.sec.gov/files/company_tickers.json"
+                response = self.session.get(url)
+            
             response.raise_for_status()
             
             companies = response.json()
@@ -184,8 +190,15 @@ class SECService:
     def search_companies(self, query: str, limit: int = 10) -> List[CompanyInfo]:
         """Search for companies by name"""
         try:
-            url = f"{self.BASE_URL}/files/company_tickers.json"
+            # Updated SEC API endpoint
+            url = f"{self.BASE_URL}/files/company_tickers_exchange.json"
             response = self.session.get(url)
+            
+            # If that fails, try the older endpoint
+            if response.status_code == 404:
+                url = "https://www.sec.gov/files/company_tickers.json"
+                response = self.session.get(url)
+            
             response.raise_for_status()
             
             companies = response.json()
