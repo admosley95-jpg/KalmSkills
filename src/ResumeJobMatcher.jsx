@@ -318,6 +318,31 @@ export default function ResumeJobMatcher() {
   const [extractedSkills, setExtractedSkills] = useState([]);
   const [processedMatches, setProcessedMatches] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [apiStatus, setApiStatus] = useState('offline'); // Start as offline to prevent issues
+  const [realTimeData, setRealTimeData] = useState({});
+  const [unemploymentRate, setUnemploymentRate] = useState(null);
+
+  // Check API health on mount
+  useEffect(() => {
+    const checkAPI = async () => {
+      try {
+        const isOnline = await API.checkHealth();
+        setApiStatus(isOnline ? 'online' : 'offline');
+        
+        if (isOnline) {
+          // Fetch unemployment rate
+          const unemployment = await API.getUnemploymentRate();
+          if (unemployment) {
+            setUnemploymentRate(unemployment.unemployment_rate);
+          }
+        }
+      } catch (error) {
+        console.error('API health check failed:', error);
+        setApiStatus('offline');
+      }
+    };
+    checkAPI();
+  }, []);
 
   // --- CORE ENGINE: NORMALIZER ---
   // This implements the "Standardization" strategy.
