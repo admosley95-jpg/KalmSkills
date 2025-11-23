@@ -1,0 +1,2 @@
+# Render requires this file in the root to detect Python project
+python-3.11.0
