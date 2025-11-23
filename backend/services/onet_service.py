@@ -45,7 +45,12 @@ class OnetService:
     
     def _load_data(self):
         """Load data from JSON cache or text files"""
-        cache_dir = Path("backend/data/onet/cache")
+        # Use absolute path relative to this file to ensure it works on Render
+        base_dir = Path(__file__).resolve().parent.parent # backend/
+        cache_dir = base_dir / "data" / "onet" / "cache"
+        
+        logger.info(f"Current working directory: {os.getcwd()}")
+        logger.info(f"Looking for O*NET cache at: {cache_dir}")
         
         # Try loading from JSON cache first (Preferred for Render)
         if (cache_dir / "occupations.json").exists() and (cache_dir / "skills.json").exists():
