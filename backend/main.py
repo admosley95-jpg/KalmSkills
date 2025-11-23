@@ -9,6 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from pydantic import BaseModel
 import logging
+import sys
+import os
+
+# Add backend directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from services.onet_service_local import OnetService, Skill, Occupation
 from services.sec_service import SECService, CompanyHealth
