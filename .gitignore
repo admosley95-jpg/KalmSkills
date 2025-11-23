@@ -1,2 +1,4 @@
 node_modules/
 backend/data/
+
+__pycache__/
