@@ -152,11 +152,25 @@ class OnetService:
                 score += matches * 10
             
             if score > 0:
+                # Get skills for this occupation
+                skills = self.skills_data.get(code, [])
+                serialized_skills = [
+                    {
+                        "id": s.id,
+                        "name": s.name,
+                        "description": s.description,
+                        "category": s.category,
+                        "level": s.level,
+                        "importance": s.importance
+                    } for s in skills
+                ]
+
                 results.append({
                     "code": code,
                     "title": data["title"],
                     "description": data["description"],
-                    "score": score
+                    "score": score,
+                    "skills": serialized_skills
                 })
         
         # Sort by score
