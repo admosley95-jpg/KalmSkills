@@ -10,7 +10,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 import logging
 
-from services.onet_service import OnetService, Skill, Occupation
+from services.onet_service_local import OnetService, Skill, Occupation
 from services.sec_service import SECService, CompanyHealth
 from services.bls_service import BLSService
 
