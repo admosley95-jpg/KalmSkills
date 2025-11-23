@@ -379,10 +379,15 @@ export default function ResumeJobMatcher() {
     // 2. If API is online, fetch real occupations from O*NET
     if (apiStatus === 'online') {
       try {
-        const skillNames = skills.map(s => s.name).join(' ');
+        // Use extracted skills OR raw text if no skills found
+        let searchQuery = skills.map(s => s.name).join(' ');
+        if (!searchQuery.trim()) {
+             // Use first 50 chars of resume text as fallback query
+             searchQuery = resumeText.slice(0, 50);
+        }
         
         // Search for occupations matching the extracted skills
-        const occupationResults = await API.searchOccupations(skillNames);
+        const occupationResults = await API.searchOccupations(searchQuery);
         
         if (occupationResults.results && occupationResults.results.length > 0) {
           // Build matches from real O*NET occupation data
@@ -437,8 +442,8 @@ export default function ResumeJobMatcher() {
       }
     }
 
-    // 3. Fall back to mock data if API is offline or no results
-    if (matches.length === 0) {
+    // 3. Fall back to mock data ONLY if API is offline
+    if (apiStatus !== 'online' && matches.length === 0) {
       matches = JOB_DATABASE.map(job => {
         const jobReqNodes = job.required_skills.map(reqName =>
           SKILL_TAXONOMY.find(n => n.name === reqName) || { name: reqName, id: 'unknown', category: 'General' }

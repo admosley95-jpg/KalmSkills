@@ -126,18 +126,39 @@ class OnetService:
     def search_occupations(self, keyword: str) -> List[Dict]:
         """Search for occupations by keyword in title or description"""
         results = []
-        keyword_lower = keyword.lower()
+        query_lower = keyword.lower()
+        keywords = query_lower.split()
+        
+        if not keywords:
+            return []
         
         for code, data in self.occupations.items():
-            if keyword_lower in data["title"].lower() or keyword_lower in data["description"].lower():
+            text = (data["title"] + " " + data["description"]).lower()
+            score = 0
+            
+            # Exact phrase match bonus
+            if query_lower in text:
+                score += 50
+            
+            # Keyword match
+            matches = 0
+            for word in keywords:
+                if len(word) > 2 and word in text: # Ignore short words
+                    matches += 1
+            
+            if matches > 0:
+                score += matches * 10
+            
+            if score > 0:
                 results.append({
                     "code": code,
                     "title": data["title"],
-                    "description": data["description"]
+                    "description": data["description"],
+                    "score": score
                 })
         
-        # Simple scoring: title match > description match
-        results.sort(key=lambda x: 0 if keyword_lower in x["title"].lower() else 1)
+        # Sort by score
+        results.sort(key=lambda x: x["score"], reverse=True)
         
         return results
 
