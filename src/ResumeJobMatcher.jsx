@@ -374,49 +374,72 @@ export default function ResumeJobMatcher() {
     const skills = normalizeAndExtract(resumeText);
     setExtractedSkills(skills);
 
-    // 2. Fetch real data from API if available
-    if (apiStatus === 'online') {
-      // Try to get real occupation match
-      const skillNames = skills.map(s => s.name);
-      const matchData = await API.matchResume(skillNames);
-      
-      if (matchData) {
-        // Enrich with real occupation data
-        const occupationDetails = await API.getOccupationDetails(matchData.occupation_code);
-        const occupationSkills = await API.getOccupationSkills(matchData.occupation_code);
-        
-        // Store real-time data
-        setRealTimeData(prev => ({
-          ...prev,
-          [matchData.occupation_code]: {
-            details: occupationDetails,
-            skills: occupationSkills,
-            match: matchData
-          }
-        }));
-      }
+    let matches = [];
 
-      // Fetch company data for each job in database
-      for (const job of JOB_DATABASE) {
-        const companyData = await API.searchCompanies(job.company);
-        if (companyData.results && companyData.results.length > 0) {
-          const company = companyData.results[0];
-          const health = await API.getCompanyHealth(company.cik);
-          
-          if (health) {
-            setRealTimeData(prev => ({
-              ...prev,
-              [job.company]: health
-            }));
-          }
+    // 2. If API is online, fetch real occupations from O*NET
+    if (apiStatus === 'online') {
+      try {
+        const skillNames = skills.map(s => s.name).join(' ');
+        
+        // Search for occupations matching the extracted skills
+        const occupationResults = await API.searchOccupations(skillNames);
+        
+        if (occupationResults.results && occupationResults.results.length > 0) {
+          // Build matches from real O*NET occupation data
+          matches = occupationResults.results.map(occupation => {
+            // Get skills from the occupation
+            const occupationSkillList = occupation.skills || [];
+            const occupationSkillNames = new Set(occupationSkillList.map(s => 
+              typeof s === 'string' ? s : s.name
+            ));
+
+            // Calculate user skills overlap
+            const userSkillNames = new Set(skills.map(s => s.name));
+            const matchedSkills = Array.from(userSkillNames).filter(skill => 
+              occupationSkillNames.has(skill)
+            );
+            const missingSkills = Array.from(occupationSkillNames).filter(skill => 
+              !userSkillNames.has(skill)
+            ).slice(0, 4); // Limit to 4 missing skills for display
+
+            // Calculate match score
+            const matchPercentage = occupationSkillList.length > 0 
+              ? Math.round((matchedSkills.length / occupationSkillList.length) * 100)
+              : 0;
+
+            return {
+              id: occupation.code,
+              title: occupation.title,
+              company: "O*NET Occupation",
+              source: "O*NET (Real Data)",
+              description: occupation.description || "Career occupation data from U.S. Department of Labor",
+              required_skills: matchedSkills,
+              bonus_skills: missingSkills,
+              industry: "Professional Services",
+              matchScore: matchPercentage,
+              matchedReqs: matchedSkills.map(name => ({
+                name,
+                id: name.toLowerCase().replace(/\s+/g, '_'),
+                category: 'Skill'
+              })),
+              missingReqs: missingSkills.map(name => ({
+                name,
+                id: name.toLowerCase().replace(/\s+/g, '_'),
+                category: 'Skill'
+              })),
+              matchedBonus: []
+            };
+          }).sort((a, b) => b.matchScore - a.matchScore);
         }
+      } catch (error) {
+        console.error('Error fetching real occupations:', error);
+        // Fall back to mock data on error
       }
     }
 
-    // 3. Match against Jobs (keep existing logic)
-    const matches = JOB_DATABASE.map(job => {
-        // Map job requirements to skill objects
-        // In a real app, job reqs would already be IDs. Here we map string -> object.
+    // 3. Fall back to mock data if API is offline or no results
+    if (matches.length === 0) {
+      matches = JOB_DATABASE.map(job => {
         const jobReqNodes = job.required_skills.map(reqName =>
           SKILL_TAXONOMY.find(n => n.name === reqName) || { name: reqName, id: 'unknown', category: 'General' }
         );
@@ -425,14 +448,12 @@ export default function ResumeJobMatcher() {
           SKILL_TAXONOMY.find(n => n.name === reqName) || { name: reqName, id: 'unknown', category: 'General' }
         );
 
-        // Calculate Overlap
-        const userSkillIds = new Set(skills.map(s => s.name)); // Using name for simple string matching in this demo
+        const userSkillIds = new Set(skills.map(s => s.name));
 
         const matchedReqs = jobReqNodes.filter(n => userSkillIds.has(n.name));
         const missingReqs = jobReqNodes.filter(n => !userSkillIds.has(n.name));
         const matchedBonus = jobBonusNodes.filter(n => userSkillIds.has(n.name));
 
-        // Weighted Scoring: Hard skills worth more than soft skills for "Match" but soft skills fit culture
         let score = 0;
         const totalWeight = jobReqNodes.length * 10 + jobBonusNodes.length * 5;
 
@@ -448,7 +469,8 @@ export default function ResumeJobMatcher() {
           missingReqs,
           matchedBonus
         };
-    }).sort((a, b) => b.matchScore - a.matchScore);
+      }).sort((a, b) => b.matchScore - a.matchScore);
+    }
 
     setProcessedMatches(matches);
     setIsAnalyzing(false);
