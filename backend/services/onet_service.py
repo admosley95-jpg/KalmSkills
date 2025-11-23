@@ -120,6 +120,9 @@ class OnetService:
 
         # Fallback to text files
         if not ONET_DATA_DIR.exists():
+            logger.warning(f"O*NET data directory not found at {ONET_DATA_DIR}. Using mock data.")
+            return
+
 
     def search_occupations(self, keyword: str) -> List[Dict]:
         """Search for occupations by keyword in title or description"""
