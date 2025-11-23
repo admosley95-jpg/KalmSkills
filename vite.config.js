@@ -5,7 +5,7 @@ export default defineConfig({
   plugins: [react()],
   root: '.',
   publicDir: 'public',
-  base: '/KalmSkills/',
+  base: '/simplilearn/',
   server: {
     host: '0.0.0.0', // Expose to network
     port: 5173,
