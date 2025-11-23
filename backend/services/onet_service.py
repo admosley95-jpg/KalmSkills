@@ -5,6 +5,7 @@ Parses and searches locally downloaded O*NET database files
 
 import os
 import csv
+import json
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 import logging
@@ -43,7 +44,70 @@ class OnetService:
         self._load_data()
     
     def _load_data(self):
-        """Load data from text files"""
+        """Load data from JSON cache or text files"""
+        cache_dir = Path("backend/data/onet/cache")
+        
+        # Try loading from JSON cache first (Preferred for Render)
+        if (cache_dir / "occupations.json").exists() and (cache_dir / "skills.json").exists():
+            logger.info("Loading O*NET data from JSON cache...")
+            try:
+                # Load Occupations
+                with open(cache_dir / "occupations.json", "r", encoding="utf-8") as f:
+                    occ_list = json.load(f)
+                    for row in occ_list:
+                        self.occupations[row["O*NET-SOC Code"]] = {
+                            "title": row["Title"],
+                            "description": row["Description"]
+                        }
+                
+                # Load Skills
+                with open(cache_dir / "skills.json", "r", encoding="utf-8") as f:
+                    skills_list = json.load(f)
+                    
+                    temp_skills = {}
+                    for row in skills_list:
+                        code = row["O*NET-SOC Code"]
+                        elem_id = row["Element ID"]
+                        scale = row["Scale ID"]
+                        value = float(row["Data Value"])
+                        name = row["Element Name"]
+                        
+                        if code not in temp_skills:
+                            temp_skills[code] = {}
+                        if elem_id not in temp_skills[code]:
+                            temp_skills[code][elem_id] = {
+                                "name": name, 
+                                "importance": 0, 
+                                "level": 0
+                            }
+                        
+                        if scale == "IM":
+                            temp_skills[code][elem_id]["importance"] = value
+                        elif scale == "LV":
+                            temp_skills[code][elem_id]["level"] = value
+
+                    # Convert to Skill objects
+                    for code, elems in temp_skills.items():
+                        self.skills_data[code] = []
+                        for elem_id, vals in elems.items():
+                            if vals["importance"] >= 2.0:
+                                self.skills_data[code].append(Skill(
+                                    id=elem_id,
+                                    name=vals["name"],
+                                    description="", 
+                                    category="Skill",
+                                    level=vals["level"],
+                                    importance=vals["importance"]
+                                ))
+                        self.skills_data[code].sort(key=lambda x: x.importance, reverse=True)
+
+                logger.info(f"Loaded {len(self.occupations)} occupations from cache.")
+                return
+
+            except Exception as e:
+                logger.error(f"Error loading from cache: {e}")
+
+        # Fallback to text files
         if not ONET_DATA_DIR.exists():
             logger.warning(f"O*NET data directory not found at {ONET_DATA_DIR}. Using mock data.")
             return
