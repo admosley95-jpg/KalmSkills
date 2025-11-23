@@ -5,6 +5,7 @@ Parses and searches locally downloaded O*NET database files
 
 import os
 import csv
+import json
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 import logging
