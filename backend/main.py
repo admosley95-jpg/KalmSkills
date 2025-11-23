@@ -36,7 +36,8 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "http://192.168.1.18:5173",
-        "https://admosley95-jpg.github.io"
+        "https://admosley95-jpg.github.io",
+        "https://kalmskills-s2ko.onrender.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],
