@@ -15,9 +15,15 @@ import os
 # Add current directory to sys.path to allow importing services
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from services.onet_service import OnetService, Skill, Occupation
-from services.sec_service import SECService, CompanyHealth
-from services.bls_service import BLSService
+try:
+    from services.onet_service import OnetService, Skill, Occupation
+    from services.sec_service import SECService, CompanyHealth
+    from services.bls_service import BLSService
+except ImportError:
+    # Fallback for when running as a module from root
+    from backend.services.onet_service import OnetService, Skill, Occupation
+    from backend.services.sec_service import SECService, CompanyHealth
+    from backend.services.bls_service import BLSService
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
