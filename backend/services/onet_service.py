@@ -11,7 +11,10 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://services.onetcenter.org/ws/online"
+# O*NET requires authentication for API access
+# Using public web endpoint instead for MVP
+BASE_URL = "https://services.onetcenter.org/ws"
+# Note: For production, register at https://services.onetcenter.org/developer/web to get API credentials
 
 @dataclass
 class Skill:
@@ -42,64 +45,99 @@ class OnetService:
         })
     
     def search_occupations(self, keyword: str) -> List[Dict]:
-        """Search for occupations by keyword"""
-        try:
-            url = f"{BASE_URL}/search"
-            params = {'keyword': keyword, 'end': 25}
-            response = self.session.get(url, params=params)
-            response.raise_for_status()
-            data = response.json()
-            return data.get('occupation', [])
-        except requests.RequestException as e:
-            logger.error(f"Error searching occupations: {e}")
-            return []
+        """Search for occupations by keyword - returns mock data for MVP"""
+        # O*NET API requires authentication - using mock data for demo
+        # For production: Register at https://services.onetcenter.org/developer/web
+        
+        logger.info(f"Searching for occupations: {keyword}")
+        
+        # Mock occupation data based on common searches
+        mock_occupations = {
+            'software': [
+                {'code': '15-1252.00', 'title': 'Software Developers', 'tags': ['python', 'javascript', 'react', 'programming']},
+                {'code': '15-1256.00', 'title': 'Software Quality Assurance Analysts', 'tags': ['testing', 'qa']},
+            ],
+            'data': [
+                {'code': '15-2051.00', 'title': 'Data Scientists', 'tags': ['python', 'machine learning', 'sql', 'analytics']},
+                {'code': '15-2041.00', 'title': 'Statisticians', 'tags': ['statistics', 'analysis']},
+            ],
+            'financial': [
+                {'code': '13-2051.00', 'title': 'Financial Analysts', 'tags': ['finance', 'excel', 'modeling']},
+                {'code': '11-3031.00', 'title': 'Financial Managers', 'tags': ['leadership', 'finance']},
+            ]
+        }
+        
+        keyword_lower = keyword.lower()
+        results = []
+        
+        for category, occupations in mock_occupations.items():
+            if category in keyword_lower or any(tag in keyword_lower for occ in occupations for tag in occ['tags']):
+                results.extend(occupations)
+        
+        # Default to software developer if no match
+        if not results:
+            results = mock_occupations['software']
+        
+        return results[:10]
     
     def get_occupation_details(self, onet_code: str) -> Optional[Occupation]:
-        """Get detailed information about a specific occupation"""
-        try:
-            # Get summary
-            url = f"{BASE_URL}/occupations/{onet_code}"
-            response = self.session.get(url)
-            response.raise_for_status()
-            summary = response.json()
-            
-            # Get skills
-            skills = self.get_occupation_skills(onet_code)
-            
-            return Occupation(
-                code=onet_code,
-                title=summary.get('title', ''),
-                description=summary.get('description', ''),
-                skills=skills,
-                education_level=self._extract_education(summary)
-            )
-        except requests.RequestException as e:
-            logger.error(f"Error fetching occupation {onet_code}: {e}")
-            return None
+        """Get detailed information about a specific occupation - mock data for MVP"""
+        logger.info(f"Fetching occupation details: {onet_code}")
+        
+        # Mock occupation details
+        mock_details = {
+            '15-1252.00': {
+                'title': 'Software Developers',
+                'description': 'Research, design, and develop computer and network software or specialized utility programs.',
+                'education': "Bachelor's degree"
+            },
+            '15-2051.00': {
+                'title': 'Data Scientists',
+                'description': 'Develop and implement a set of techniques or analytics applications to transform raw data into meaningful information.',
+                'education': "Master's degree"
+            },
+            '13-2051.00': {
+                'title': 'Financial Analysts',
+                'description': 'Conduct quantitative analyses of information involving investment programs or financial data of public or private institutions.',
+                'education': "Bachelor's degree"
+            }
+        }
+        
+        details = mock_details.get(onet_code, mock_details['15-1252.00'])
+        skills = self.get_occupation_skills(onet_code)
+        
+        return Occupation(
+            code=onet_code,
+            title=details['title'],
+            description=details['description'],
+            skills=skills,
+            education_level=details['education']
+        )
     
     def get_occupation_skills(self, onet_code: str) -> List[Skill]:
-        """Get skills required for an occupation"""
-        try:
-            url = f"{BASE_URL}/occupations/{onet_code}/summary/skills"
-            response = self.session.get(url)
-            response.raise_for_status()
-            data = response.json()
-            
-            skills = []
-            for skill_data in data.get('skill', []):
-                skills.append(Skill(
-                    id=skill_data.get('element_id', ''),
-                    name=skill_data.get('element_name', ''),
-                    description=skill_data.get('description', ''),
-                    category='Skill',
-                    level=float(skill_data.get('scale_level', {}).get('value', 0)),
-                    importance=float(skill_data.get('scale_importance', {}).get('value', 0))
-                ))
-            
-            return skills
-        except requests.RequestException as e:
-            logger.error(f"Error fetching skills for {onet_code}: {e}")
-            return []
+        """Get skills required for an occupation - mock data for MVP"""
+        logger.info(f"Fetching skills for: {onet_code}")
+        
+        # Mock skills based on occupation
+        mock_skills = {
+            '15-1252.00': [  # Software Developers
+                Skill('2.A.1.a', 'Reading Comprehension', 'Understanding written sentences and paragraphs', 'Basic Skills', 3.5, 3.8),
+                Skill('2.A.1.b', 'Active Listening', 'Giving full attention to what other people are saying', 'Basic Skills', 3.2, 3.5),
+                Skill('2.C.1.a', 'Programming', 'Writing computer programs for various purposes', 'Technical Skills', 4.5, 4.8),
+                Skill('2.C.1.b', 'Systems Analysis', 'Determining how a system should work', 'Technical Skills', 4.2, 4.5),
+            ],
+            '15-2051.00': [  # Data Scientists
+                Skill('2.A.1.a', 'Mathematics', 'Using mathematics to solve problems', 'Basic Skills', 4.5, 4.8),
+                Skill('2.C.1.a', 'Programming', 'Writing computer programs for various purposes', 'Technical Skills', 4.3, 4.6),
+                Skill('2.C.1.c', 'Data Analysis', 'Analyzing data to identify trends', 'Technical Skills', 4.7, 4.9),
+            ],
+            '13-2051.00': [  # Financial Analysts
+                Skill('2.A.1.a', 'Mathematics', 'Using mathematics to solve problems', 'Basic Skills', 4.0, 4.3),
+                Skill('2.C.1.d', 'Financial Analysis', 'Analyzing financial data', 'Technical Skills', 4.5, 4.8),
+            ]
+        }
+        
+        return mock_skills.get(onet_code, mock_skills['15-1252.00'])
     
     def get_technology_skills(self, onet_code: str) -> List[str]:
         """Get technology/tool skills for an occupation"""
